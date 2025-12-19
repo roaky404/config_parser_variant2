@@ -49,15 +49,15 @@ class ConfigTransformer(Transformer):
         self.constants = {}
 
     def number_value(self, items):
-        return int(items[0])
+        return int(items[0].value)
 
     def string_value(self, items):
         # Убираем @" и "
-        text = str(items[0])
+        text = items[0].value
         return text[2:-1]
 
     def name_value(self, items):
-        name = str(items[0])
+        name = items[0].value
         if name in self.constants:
             return self.constants[name]
         raise ValueError(f"Неизвестная константа: {name}")
@@ -69,28 +69,45 @@ class ConfigTransformer(Transformer):
         return dict(items)
 
     def assignment(self, items):
-        return (str(items[0]), items[1])
+        return (items[0].value, items[1])
 
     def constant(self, items):
-        name = str(items[0])
+        name = items[0].value
         value = items[1]
         self.constants[name] = value
         return None
 
     def add_op(self, items):
-        return items[0] + items[1]
+        left = items[0] if isinstance(items[0], (int, float)) else 0
+        right = items[1] if isinstance(items[1], (int, float)) else 0
+        return left + right
 
     def sub_op(self, items):
-        return items[0] - items[1]
+        left = items[0] if isinstance(items[0], (int, float)) else 0
+        right = items[1] if isinstance(items[1], (int, float)) else 0
+        return left - right
 
     def mul_op(self, items):
-        return items[0] * items[1]
+        left = items[0] if isinstance(items[0], (int, float)) else 0
+        right = items[1] if isinstance(items[1], (int, float)) else 0
+        return left * right
 
     def div_op(self, items):
-        return items[0] / items[1]
+        left = items[0] if isinstance(items[0], (int, float)) else 1
+        right = items[1] if isinstance(items[1], (int, float)) else 1
+        if right == 0:
+            return 0
+        return left / right
 
     def len_op(self, items):
-        return len(items[0])
+        value = items[0]
+        if isinstance(value, list):
+            return len(value)
+        elif isinstance(value, str):
+            return len(value)
+        elif isinstance(value, dict):
+            return len(value)
+        return 0
 
     def const_expr(self, items):
         return items[0]
@@ -100,8 +117,9 @@ class ConfigTransformer(Transformer):
         result = [item for item in items if item is not None]
         if len(result) == 1:
             return result[0]
+        elif len(result) == 0:
+            return {}
         return result
-
 
 def parse_config(input_text: str):
     """
