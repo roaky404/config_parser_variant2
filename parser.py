@@ -2,33 +2,33 @@
 Парсер для учебного конфигурационного языка (Вариант 2)
 """
 import json
-from lark import Lark, Transformer, v_args
+from lark import Lark, Transformer, Token
 
 # Грамматика языка в формате Lark
 GRAMMAR = """
-    start: (constant | value)*
+    start: (constant | dict_value)*
 
     constant: NAME "<-" value ";"
 
-    value: NUMBER          -> number_value
-         | STRING          -> string_value
+    value: NUMBER          -> number
+         | STRING          -> string
          | array
-         | dictionary
-         | NAME            -> name_value
+         | dict_value
+         | NAME            -> name
          | const_expr
 
     const_expr: "${" operation "}"
 
-    operation: "+" value value -> add_op
-             | "-" value value -> sub_op
-             | "*" value value -> mul_op
-             | "/" value value -> div_op
-             | "len" "(" value ")" -> len_op
+    operation: "+" value value -> add
+             | "-" value value -> sub
+             | "*" value value -> mul
+             | "/" value value -> div
+             | "len" "(" value ")" -> len
 
     array: "array" "(" [value ("," value)*] ")"
 
-    dictionary: "begin" (assignment ";")+ "end"
-    assignment: NAME ":=" value
+    dict_value: "begin" (pair ";")+ "end"
+    pair: NAME ":=" value
 
     STRING: /@\"[^\"]*\"/
     NUMBER: /[+-]?\\d+/
@@ -42,107 +42,96 @@ GRAMMAR = """
 
 
 class ConfigTransformer(Transformer):
-    """Преобразует дерево разбора в Python-объекты"""
-
     def __init__(self):
-        super().__init__()
         self.constants = {}
+        super().__init__()
 
-    def number_value(self, items):
-        return int(items[0].value)
+    def number(self, items):
+        return int(items[0])
 
-    def string_value(self, items):
-        # Убираем @" и "
-        text = items[0].value
-        return text[2:-1]
+    def string(self, items):
+        text = items[0][2:-1]  # Remove @" and "
+        return text
 
-    def name_value(self, items):
-        name = items[0].value
+    def name(self, items):
+        name = items[0]
         if name in self.constants:
             return self.constants[name]
-        raise ValueError(f"Неизвестная константа: {name}")
+        raise ValueError(f"Constant '{name}' not defined")
 
     def array(self, items):
         return list(items)
 
-    def dictionary(self, items):
-        return dict(items)
+    def dict_value(self, items):
+        result = {}
+        for key, value in items:
+            result[key] = value
+        return result
 
-    def assignment(self, items):
-        return (items[0].value, items[1])
+    def pair(self, items):
+        key = items[0]
+        value = items[1]
+        return (key, value)
 
     def constant(self, items):
-        name = items[0].value
+        name = items[0]
         value = items[1]
         self.constants[name] = value
         return None
 
-    def add_op(self, items):
-        left = items[0] if isinstance(items[0], (int, float)) else 0
-        right = items[1] if isinstance(items[1], (int, float)) else 0
-        return left + right
+    def add(self, items):
+        return items[0] + items[1]
 
-    def sub_op(self, items):
-        left = items[0] if isinstance(items[0], (int, float)) else 0
-        right = items[1] if isinstance(items[1], (int, float)) else 0
-        return left - right
+    def sub(self, items):
+        return items[0] - items[1]
 
-    def mul_op(self, items):
-        left = items[0] if isinstance(items[0], (int, float)) else 0
-        right = items[1] if isinstance(items[1], (int, float)) else 0
-        return left * right
+    def mul(self, items):
+        return items[0] * items[1]
 
-    def div_op(self, items):
-        left = items[0] if isinstance(items[0], (int, float)) else 1
-        right = items[1] if isinstance(items[1], (int, float)) else 1
-        if right == 0:
-            return 0
-        return left / right
+    def div(self, items):
+        return items[0] / items[1]
 
-    def len_op(self, items):
-        value = items[0]
-        if isinstance(value, list):
-            return len(value)
-        elif isinstance(value, str):
-            return len(value)
-        elif isinstance(value, dict):
-            return len(value)
-        return 0
+    def len(self, items):
+        return len(items[0])
 
     def const_expr(self, items):
         return items[0]
 
     def start(self, items):
-        # Фильтруем None (константы) и собираем все значения
-        result = [item for item in items if item is not None]
-        if len(result) == 1:
-            return result[0]
-        elif len(result) == 0:
+        # Filter out None values (constants)
+        items = [item for item in items if item is not None]
+        if not items:
             return {}
+        # If multiple dicts, merge them
+        result = {}
+        for item in items:
+            if isinstance(item, dict):
+                result.update(item)
         return result
 
+
 def parse_config(input_text: str):
-    """
-    Парсит текст на учебном конфигурационном языке.
-    Возвращает Python-объект (словарь, список, число, строку).
-    """
+    """Parse configuration text and return Python object"""
     parser = Lark(GRAMMAR, parser='lalr', transformer=ConfigTransformer())
-    try:
-        return parser.parse(input_text)
-    except Exception as e:
-        raise ValueError(f"Ошибка разбора: {e}")
+    return parser.parse(input_text)
 
 
+# Тест
 if __name__ == "__main__":
-    # Тестовый пример
-    test_input = """
-    max_size <- 100;
-    array(1, 2, 3, ${+ max_size 5})
+    test = """
+    port <- 8080;
+    host <- @"localhost";
+
+    begin
+        server := host;
+        port := port;
+        workers := array(1, 2, 3);
+    end
     """
 
     try:
-        result = parse_config(test_input)
-        print("Результат разбора:")
+        result = parse_config(test)
+        print("Parsed successfully:")
         print(json.dumps(result, indent=2, ensure_ascii=False))
     except Exception as e:
-        print(f"Ошибка: {e}")
+        print(f"Error: {e}")
