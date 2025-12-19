@@ -5,6 +5,7 @@
 import sys
 import json
 import argparse
+from parser import parse_config
 
 
 def main():
@@ -15,16 +16,18 @@ def main():
     # Чтение всего входного потока
     input_data = sys.stdin.read()
 
-    # TODO: Здесь будет основной процесс разбора (парсинг) входного текста
-    # Сейчас мы просто имитируем успешный разбор, создав пустой словарь.
-    # В реальности `parsed_data` должен быть результатом работы вашего парсера.
-    parsed_data = {}  # Заглушка
-
-    # Запись результата в JSON файл
     try:
+        # Парсим входные данные
+        parsed_data = parse_config(input_data)
+
+        # Запись результата в JSON файл
         with open(args.output, 'w', encoding='utf-8') as f:
             json.dump(parsed_data, f, indent=2, ensure_ascii=False)
         print(f"Конфигурация успешно сохранена в {args.output}", file=sys.stderr)
+
+    except ValueError as e:
+        print(f"Ошибка разбора: {e}", file=sys.stderr)
+        sys.exit(1)
     except IOError as e:
         print(f"Ошибка записи в файл: {e}", file=sys.stderr)
         sys.exit(1)
