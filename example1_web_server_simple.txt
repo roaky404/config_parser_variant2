@@ -1,0 +1,17 @@
+# Простая конфигурация веб-сервера
+server_name <- @"MyWebServer";
+default_port <- 8080;
+
+begin
+  name := server_name;
+  port := default_port;
+  workers := array(@"worker1", @"worker2", @"worker3");
+
+  settings := begin
+    timeout := 30;
+    max_connections := 1000;
+    ssl_enabled := true;
+  end;
+
+  logging_level := @"INFO";
+end
